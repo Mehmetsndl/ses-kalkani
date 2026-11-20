@@ -19,35 +19,10 @@ jobs:
         shell: cmd
         run: build.bat
 
-      - name: Ekran görüntüsü al
-        shell: pwsh
-        run: |
-          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-          Add-Type @"
-          using System; using System.Runtime.InteropServices;
-          public static class W { [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; }
-            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
-            [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h); }
-          "@
-          $p = Start-Process -FilePath dist\SesKalkani.exe -PassThru
-          Start-Sleep -Seconds 8
-          $p.Refresh(); $h = $p.MainWindowHandle
-          [W]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Seconds 1
-          $r = New-Object W+R; [W]::GetWindowRect($h, [ref]$r) | Out-Null
-          $w = $r.Rt - $r.L; $hh = $r.B - $r.T
-          if ($w -lt 50) { $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $r.L=0; $r.T=0; $w=$b.Width; $hh=$b.Height }
-          $bmp = New-Object System.Drawing.Bitmap $w, $hh
-          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
-          $bmp.Save("screen.png", [System.Drawing.Imaging.ImageFormat]::Png)
-          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-          "SCREENSHOT_B64_BEGIN"; [Convert]::ToBase64String([IO.File]::ReadAllBytes("screen.png")); "SCREENSHOT_B64_END"
-
       - uses: actions/upload-artifact@v4
         with:
           name: SesKalkani
-          path: |
-            dist/SesKalkani.exe
-            screen.png
+          path: dist/SesKalkani.exe
 
       # Sürüm yayınlamak için commit mesajına [release] yaz (sürüm: src/AssemblyInfo.cs)
       - name: Sürümü oku
