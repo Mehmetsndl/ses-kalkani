@@ -9,7 +9,7 @@ Ses Kalkanı, mikrofonunla Discord arasına giren küçük bir Windows programı
    seninkinden çok daha yüksek duyuyorsa konuşan kişi odur; senin mikrofonun o an otomatik susturulur.
    Asıl işi gören özellik budur.
 
-<!-- SCREENSHOT -->
+<p align="center"><img src="docs/ekran.png" width="420" alt="Ses Kalkanı penceresi"></p>
 
 - Kurulum yok, tek bir `.exe` (~150 KB)
 - Arka planda saatin yanındaki simge alanında çalışır, Windows açılınca kendiliğinden başlayabilir
