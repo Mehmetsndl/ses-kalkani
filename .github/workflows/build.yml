@@ -1,0 +1,58 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derle
+        shell: cmd
+        run: build.bat
+
+      - name: Ekran görüntüsü al
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\SesKalkani.exe -PassThru
+          Start-Sleep -Seconds 8
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("screen.png", [System.Drawing.Imaging.ImageFormat]::Png)
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SesKalkani
+          path: |
+            dist/SesKalkani.exe
+            screen.png
+
+      # Sürüm yayınlamak için commit mesajına [release] yaz (sürüm: src/AssemblyInfo.cs)
+      - name: Sürümü oku
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Get-Item dist\SesKalkani.exe).VersionInfo.FileVersion -replace '\.0$',''
+          "v=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Sürümü yayınla
+        if: github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release]')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.v }}
+          target_commitish: ${{ github.sha }}
+          name: Ses Kalkanı ${{ steps.ver.outputs.v }}
+          body_path: .github/release-notes.md
+          files: dist/SesKalkani.exe
