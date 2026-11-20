@@ -11,7 +11,7 @@ Ses Kalkanı, mikrofonunla Discord arasına giren küçük bir Windows programı
 
 <p align="center"><img src="docs/ekran.png" width="420" alt="Ses Kalkanı penceresi"></p>
 
-- Kurulum yok, tek bir `.exe` (~150 KB)
+- Kurulum yok, tek bir `.exe` (~70 KB)
 - Arka planda saatin yanındaki simge alanında çalışır, Windows açılınca kendiliğinden başlayabilir
 - "Otomatik ayarla" ile 10 saniyede eşik ayarı
 - Ek kütüphane yok: Windows'un kendi ses API'si (winmm) ve .NET Framework 4
