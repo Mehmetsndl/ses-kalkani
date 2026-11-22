@@ -8,6 +8,10 @@ using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using System.Net;
+using System.Reflection;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace SesKalkani
 {
@@ -258,7 +262,7 @@ namespace SesKalkani
             AutoScaleMode = AutoScaleMode.None;
             using (var g = CreateGraphics()) k = g.DpiX / 96f;
 
-            Text = "Ses Kalkanı";
+            Text = "Ses Kalkanı " + VersionText(CurrentVersion);
             FormBorderStyle = FormBorderStyle.FixedSingle; MaximizeBox = false;
             BackColor = C.Bg; ForeColor = C.Text; Font = fBody;
             StartPosition = FormStartPosition.CenterScreen;
@@ -268,7 +272,10 @@ namespace SesKalkani
 
             // ---- Başlık
             Lbl(this, "Ses Kalkanı", fTitle, C.Text, M, 14, 260, 32);
-            Lbl(this, "Discord'a sadece senin sesin gitsin.", fSub, C.Dim, M + 1, 46, 300, 18);
+            Lbl(this, "Discord'a sadece senin sesin gitsin.", fSub, C.Dim, M + 1, 46, 250, 18);
+            lblUpdate = LinkLbl(this, "", M + W - 170, 46, 170, 18);
+            lblUpdate.ForeColor = C.Green; lblUpdate.Visible = false;
+            lblUpdate.Click += (s, e) => OpenUpdate();
             var help = LinkLbl(this, "Yardım", M + W - 80, 22, 80, 18);
             help.Click += (s, e) => OpenHelp();
 
@@ -339,6 +346,9 @@ namespace SesKalkani
             timer.Tick += (s, e) => Tick();
             timer.Start();
             SetupTray();
+            HandleCreated += (s, e) => CheckUpdateAsync();
+            updTimer.Tick += (s, e) => CheckUpdateAsync();
+            updTimer.Start();
             Shown += (s, e) => { if (st.AutoStart) TryAutoStart(false); };
             FormClosing += OnClosing;
         }
@@ -347,15 +357,77 @@ namespace SesKalkani
         void SetupTray()
         {
             miToggle = new MenuItem("Başlat", (s, e) => Toggle());
+            miUpdate = new MenuItem("Yeni sürümü indir", (s, e) => OpenUpdate()) { Visible = false };
             var menu = new ContextMenu(new[] {
                 new MenuItem("Ses Kalkanı'nı göster", (s, e) => ShowWindow()) { DefaultItem = true },
                 miToggle,
+                miUpdate,
                 new MenuItem("-"),
                 new MenuItem("Çıkış", (s, e) => ExitApp()) });
             menu.Popup += (s, e) => miToggle.Text = eng.Running ? "Durdur" : "Başlat";
             tray = new NotifyIcon { Icon = Icon, Text = "Ses Kalkanı", ContextMenu = menu, Visible = true };
             tray.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) ShowWindow(); };
+            tray.BalloonTipClicked += (s, e) => { if (balloonIsUpdate) OpenUpdate(); };
+            tray.BalloonTipClosed += (s, e) => balloonIsUpdate = false;
         }
+
+        // ---- Güncelleme kontrolü: sadece haber verir, kendisi bir şey indirmez
+        const string RepoUrl = "https://github.com/Mehmetsndl/ses-kalkani";
+        const string LatestApi = "https://api.github.com/repos/Mehmetsndl/ses-kalkani/releases/latest";
+        readonly System.Windows.Forms.Timer updTimer = new System.Windows.Forms.Timer { Interval = 6 * 60 * 60 * 1000 };
+        Label lblUpdate; MenuItem miUpdate;
+        string updateUrl = RepoUrl + "/releases/latest", notifiedVersion;
+        bool balloonIsUpdate;
+
+        static Version CurrentVersion { get { return Assembly.GetExecutingAssembly().GetName().Version; } }
+        static Version Norm(Version v) { return new Version(v.Major, v.Minor, Math.Max(0, v.Build)); }
+        static string VersionText(Version v) { return Norm(v).ToString(3); }
+
+        void CheckUpdateAsync()
+        {
+            var t = new Thread(() =>
+            {
+                try
+                {
+                    ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072; // TLS 1.2
+                    string json;
+                    using (var wc = new WebClient())
+                    {
+                        wc.Encoding = Encoding.UTF8;
+                        wc.Headers[HttpRequestHeader.UserAgent] = "SesKalkani/" + VersionText(CurrentVersion);
+                        wc.Headers[HttpRequestHeader.Accept] = "application/vnd.github+json";
+                        json = wc.DownloadString(LatestApi);
+                    }
+                    var m = Regex.Match(json, "\"tag_name\"\\s*:\\s*\"v?([0-9][^\"]*)\"");
+                    if (!m.Success) return;
+                    Version latest;
+                    if (!Version.TryParse(m.Groups[1].Value, out latest)) return;
+                    if (Norm(latest) <= Norm(CurrentVersion)) return;
+                    var u = Regex.Match(json, "\"html_url\"\\s*:\\s*\"([^\"]*/releases/tag/[^\"]*)\"");
+                    string url = u.Success ? u.Groups[1].Value : RepoUrl + "/releases/latest";
+                    BeginInvoke(new Action(() => ShowUpdate(VersionText(latest), url)));
+                }
+                catch { } // internet yoksa sessizce geç
+            }) { IsBackground = true, Name = "GuncellemeKontrol" };
+            t.Start();
+        }
+
+        void ShowUpdate(string ver, string url)
+        {
+            updateUrl = url;
+            lblUpdate.Text = "↑ Yeni sürüm mevcut: v" + ver;
+            lblUpdate.Visible = true;
+            miUpdate.Text = "Yeni sürümü indir (v" + ver + ")";
+            miUpdate.Visible = true;
+            if (notifiedVersion != ver)
+            {
+                notifiedVersion = ver;
+                balloonIsUpdate = true;
+                try { tray.ShowBalloonTip(8000, "Ses Kalkanı: yeni sürüm mevcut", "v" + ver + " yayınlandı. İndirme sayfasını açmak için tıkla.", ToolTipIcon.Info); } catch { }
+            }
+        }
+
+        void OpenUpdate() { try { Process.Start(updateUrl); } catch { } }
 
         public void ShowWindow()
         {
@@ -375,12 +447,12 @@ namespace SesKalkani
                 Hide();
                 if (!trayTipShown)
                 {
-                    trayTipShown = true;
+                    trayTipShown = true; balloonIsUpdate = false;
                     try { tray.ShowBalloonTip(3000, "Ses Kalkanı arka planda çalışıyor", "Saatin yanındaki simgeye tıklayarak açabilirsin. Kapatmak için sağ tık → Çıkış.", ToolTipIcon.Info); } catch { }
                 }
                 return;
             }
-            timer.Stop(); eng.Stop(); eng.Link.Stop(); st.Save();
+            timer.Stop(); updTimer.Stop(); eng.Stop(); eng.Link.Stop(); st.Save();
             tray.Visible = false; tray.Dispose();
         }
 
@@ -412,7 +484,7 @@ namespace SesKalkani
                 t.Tick += (s, e) => { t.Stop(); t.Dispose(); TryAutoStart(true); };
                 t.Start();
             }
-            else try { tray.ShowBalloonTip(5000, "Ses Kalkanı başlatılamadı", err, ToolTipIcon.Warning); } catch { }
+            else try { balloonIsUpdate = false; tray.ShowBalloonTip(5000, "Ses Kalkanı başlatılamadı", err, ToolTipIcon.Warning); } catch { }
         }
 
         // ---- Küçük yardımcılar
@@ -694,6 +766,7 @@ namespace SesKalkani
             lblState.ForeColor = state == 1 ? C.Green : C.Orange;
             lblPartner.Text = connected ? "✓  Bağlandı: KARDES-PC" : "Kardeşin bekleniyor… (onda da BAŞLAT'a basılı olmalı)";
             lblPartner.ForeColor = connected ? C.Green : C.Orange;
+            ShowUpdate("1.2.0", RepoUrl);
             lnkVb.Visible = false; lblHint.ForeColor = C.Green; lblHint.Text = "✓  Yayın koruması açık: sesin yayına karışmaz.";
         }
 #endif
