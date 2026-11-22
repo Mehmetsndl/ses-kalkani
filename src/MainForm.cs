@@ -529,7 +529,7 @@ namespace SesKalkani
         {
             var i = cbIn.SelectedItem as DevItem; var o = cbOut.SelectedItem as DevItem;
             if (i == null || o == null) return "Önce mikrofonu ve sanal mikrofonu (CABLE Input) seç.";
-            string err = eng.Start(i.Id, o.Id);
+            string err = eng.Start(i.Id, o.Id, o.Name, true);
             if (err != null) return err;
             btnStart.Text = "DURDUR"; SetBtnColor(btnStart, C.Red);
             cbIn.Enabled = cbOut.Enabled = false;
@@ -617,7 +617,17 @@ namespace SesKalkani
         }
 
         // ---- Ekranı güncelle (saniyede ~30 kez)
-        string lastState = "", lastPartner = "";
+        string lastState = "", lastPartner = ""; bool lastOn;
+
+        void UpdateProtectHint()
+        {
+            if (!eng.Running) { tip.SetToolTip(lblHint, ""); DevicesChanged(); return; }
+            lnkVb.Visible = false;
+            if (eng.Protected) { lblHint.ForeColor = C.Green; lblHint.Text = "✓  Yayın koruması açık: sesin yayına karışmaz."; }
+            else { lblHint.ForeColor = C.Orange; lblHint.Text = "Yayın koruması çalışmıyor — yayında oyun penceresini paylaş."; }
+            tip.SetToolTip(lblHint, eng.ProtectInfo);
+        }
+        readonly ToolTip tip = new ToolTip();
         void Tick()
         {
             if (calStep != 0) CalibrationTick();
@@ -640,6 +650,8 @@ namespace SesKalkani
             meter.Active = on; meter.Level = shown; meter.State = eng.Gate.State;
             meter.Partner = on && tgPartner.Checked ? eng.Gate.PartnerLevel : -200;
             meter.Invalidate();
+
+            if (on != lastOn) { lastOn = on; UpdateProtectHint(); }
 
             string s; Color sc;
             if (!on) { sc = C.Dim; s = "Kapalı — BAŞLAT'a bas"; }
@@ -682,6 +694,7 @@ namespace SesKalkani
             lblState.ForeColor = state == 1 ? C.Green : C.Orange;
             lblPartner.Text = connected ? "✓  Bağlandı: KARDES-PC" : "Kardeşin bekleniyor… (onda da BAŞLAT'a basılı olmalı)";
             lblPartner.ForeColor = connected ? C.Green : C.Orange;
+            lnkVb.Visible = false; lblHint.ForeColor = C.Green; lblHint.Text = "✓  Yayın koruması açık: sesin yayına karışmaz.";
         }
 #endif
     }

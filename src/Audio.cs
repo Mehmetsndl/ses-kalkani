@@ -264,6 +264,11 @@ namespace SesKalkani
         public volatile string Error;
         public bool Running { get { return run; } }
 
+        // Yayın koruması: sanal kabloya özel modda yaz (Discord yayınına mikrofon karışmasın)
+        WasapiExclusiveOut ex;
+        public bool Protected { get { return ex != null; } }
+        public string ProtectInfo = "";
+
         // Ölçüm (otomatik ayar)
         readonly object calLk = new object();
         List<float> cal; int calLeft;
@@ -273,15 +278,27 @@ namespace SesKalkani
 
         public AudioEngine() { Gate.Partner = Link; }
 
-        public string Start(uint inDev, uint outDev)
+        public string Start(uint inDev, uint outDev, string outName, bool protect)
         {
             if (run) return null;
+            ex = null; ProtectInfo = "";
+            if (protect)
+            {
+                var w = new WasapiExclusiveOut();
+                string we = w.Start(outName);
+                if (we == null) { ex = w; ProtectInfo = w.FormatInfo; }
+                else ProtectInfo = we;
+            }
             var f = new Win.WAVEFORMATEX { wFormatTag = 1, nChannels = 1, nSamplesPerSec = Gate.Rate, wBitsPerSample = 16, nBlockAlign = 2, nAvgBytesPerSec = Gate.Rate * 2 };
             ev = new AutoResetEvent(false);
             int r = Win.waveInOpen(out hIn, new UIntPtr(inDev), ref f, ev.SafeWaitHandle.DangerousGetHandle(), IntPtr.Zero, Win.CALLBACK_EVENT);
-            if (r != 0) { hIn = IntPtr.Zero; return "Mikrofon açılamadı (hata " + r + "). Başka bir uygulama mikrofonu özel kullanımda olabilir."; }
-            r = Win.waveOutOpen(out hOut, new UIntPtr(outDev), ref f, IntPtr.Zero, IntPtr.Zero, Win.CALLBACK_NULL);
-            if (r != 0) { Win.waveInClose(hIn); hIn = hOut = IntPtr.Zero; return "Sanal mikrofon açılamadı (hata " + r + ")."; }
+            if (r != 0) { hIn = IntPtr.Zero; if (ex != null) { ex.Stop(); ex = null; } return "Mikrofon açılamadı (hata " + r + "). Başka bir uygulama mikrofonu özel kullanımda olabilir."; }
+            if (r != 0 && ex != null) { ex.Stop(); ex = null; }
+            if (ex == null)
+            {
+                r = Win.waveOutOpen(out hOut, new UIntPtr(outDev), ref f, IntPtr.Zero, IntPtr.Zero, Win.CALLBACK_NULL);
+                if (r != 0) { Win.waveInClose(hIn); hIn = hOut = IntPtr.Zero; return "Sanal mikrofon açılamadı (hata " + r + ")."; }
+            }
 
             int bytes = Gate.Block * 2;
             inB = new Buf[InBufs];
@@ -291,8 +308,8 @@ namespace SesKalkani
                 Win.waveInPrepareHeader(hIn, inB[i].Hdr, (uint)Win.HdrSize);
                 Win.waveInAddBuffer(hIn, inB[i].Hdr, (uint)Win.HdrSize);
             }
-            outB = new Buf[OutBufs];
-            for (int i = 0; i < OutBufs; i++)
+            outB = new Buf[ex == null ? OutBufs : 0];
+            for (int i = 0; i < outB.Length; i++)
             {
                 outB[i] = Buf.Create(bytes);
                 Win.waveOutPrepareHeader(hOut, outB[i].Hdr, (uint)Win.HdrSize);
@@ -314,9 +331,13 @@ namespace SesKalkani
             Win.waveInStop(hIn); Win.waveInReset(hIn);
             foreach (var b in inB) Win.waveInUnprepareHeader(hIn, b.Hdr, (uint)Win.HdrSize);
             Win.waveInClose(hIn);
-            Win.waveOutReset(hOut);
-            foreach (var b in outB) Win.waveOutUnprepareHeader(hOut, b.Hdr, (uint)Win.HdrSize);
-            Win.waveOutClose(hOut);
+            if (ex != null) { ex.Stop(); ex = null; }
+            else
+            {
+                Win.waveOutReset(hOut);
+                foreach (var b in outB) Win.waveOutUnprepareHeader(hOut, b.Hdr, (uint)Win.HdrSize);
+                Win.waveOutClose(hOut);
+            }
             foreach (var b in inB) b.Free();
             foreach (var b in outB) b.Free();
             ev.Close();
@@ -335,6 +356,7 @@ namespace SesKalkani
                 while (run)
                 {
                     ev.WaitOne(50);
+                    if (ex != null && ex.Error != null) { Error = ex.Error; ex.Error = null; }
                     while (run)
                     {
                         var b = inB[next];
@@ -379,6 +401,7 @@ namespace SesKalkani
 
         void WriteOut(short[] o)
         {
+            if (ex != null) { if (ex.Fifo != null) ex.Fifo.Write(o); return; }
             int queued = 0; Buf free = null;
             foreach (var b in outB)
             {

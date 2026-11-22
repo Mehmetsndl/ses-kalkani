@@ -14,7 +14,8 @@ Ses Kalkanı, mikrofonunla Discord arasına giren küçük bir Windows programı
 - Kurulum yok, tek bir `.exe` (~70 KB)
 - Arka planda saatin yanındaki simge alanında çalışır, Windows açılınca kendiliğinden başlayabilir
 - "Otomatik ayarla" ile 10 saniyede eşik ayarı
-- Ek kütüphane yok: Windows'un kendi ses API'si (winmm) ve .NET Framework 4
+- **Yayın koruması:** Discord'da ekran paylaşırken sesin yayına karışıp eko yapmaz
+- Ek kütüphane yok: Windows'un kendi ses API'leri (winmm, WASAPI) ve .NET Framework 4
 
 > *English: Ses Kalkanı ("Voice Shield") is a tiny Windows noise gate for two people gaming in the same room.
 > Both PCs talk over the LAN; when your sibling's mic hears a voice much louder than yours does, your mic is muted,
@@ -81,6 +82,12 @@ Program eşiği kendisi ayarlar.
   Güvenlik duvarı izni için: Başlat → "Windows Defender Güvenlik Duvarı aracılığıyla bir uygulamaya izin ver" → SesKalkani → iki kutu.
 - **Discord'a hiç ses gitmiyor:** Discord'da giriş cihazı `CABLE Output` mu, programda BAŞLAT'a basılı mı?
   Windows Ayarları → Gizlilik → Mikrofon → "Masaüstü uygulamalarının erişimine izin ver" açık mı?
+- **Discord'da yayın açınca sesim eko yapıyor:** Discord ekranı sesli paylaşınca programların sesini yayına ekler;
+  Ses Kalkanı'nın sanal kabloya verdiği ses (senin mikrofonun) da yayına girerdi. **Yayın koruması** bunu engeller:
+  BAŞLAT'tan sonra cihaz kartında yeşil `✓ Yayın koruması açık` yazmalı. Turuncu "çalışmıyor" yazıyorsa:
+  Ses Denetim Masası → **Kayıttan yürütme** → `CABLE Input` → Özellikler → **Gelişmiş** →
+  "Uygulamaların bu aygıtın özel denetimini almasına izin ver" kutusunu işaretle, sonra DURDUR / BAŞLAT.
+  Yine olmazsa yayında tüm ekran yerine oyunun penceresini paylaş (Discord'da "Uygulamalar" sekmesi).
 - **Exe'yi başka klasöre taşıdım:** Programı bir kere elle aç; Windows başlangıç kaydı yeni yere göre güncellenir.
 
 ## Arka planda çalışma
@@ -93,6 +100,9 @@ Program eşiği kendisi ayarlar.
 ## Nasıl çalışır?
 
 - `src/Audio.cs`: winmm ile mikrofondan okuma ve sanal mikrofona yazma; kardeş modu için yerel ağda UDP yayını (port **47811**).
+- `src/WasapiOut.cs`: yayın koruması. Sanal mikrofona WASAPI **özel mod** ile yazar; özel mod Windows ses karıştırıcısını
+  atladığı için Discord'un ekran paylaşımı ses yakalaması mikrofonunu göremez. Açılamazsa normal moda (winmm) döner.
+- `src/Fifo.cs`: mikrofon ile sanal kablo arasındaki tampon, örnekleme hızı dönüşümü ve saat kayması düzeltmesi.
 - `src/Gate.cs`: eşik ve iki mikrofonun seviye karşılaştırması (hassasiyet farkı, dB).
 - `src/MainForm.cs`: arayüz, simge alanı, otomatik ayar ve başlangıç kaydı.
 
