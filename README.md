@@ -15,6 +15,7 @@ Ses Kalkanı, mikrofonunla Discord arasına giren küçük bir Windows programı
 - Arka planda saatin yanındaki simge alanında çalışır, Windows açılınca kendiliğinden başlayabilir
 - "Otomatik ayarla" ile 10 saniyede eşik ayarı
 - **Yayın koruması:** Discord'da ekran paylaşırken sesin yayına karışıp eko yapmaz
+- **Güncelleme bildirimi:** yeni sürüm çıkınca pencerede ve simge alanında haber verir (kendisi bir şey indirmez)
 - Ek kütüphane yok: Windows'un kendi ses API'leri (winmm, WASAPI) ve .NET Framework 4
 
 > *English: Ses Kalkanı ("Voice Shield") is a tiny Windows noise gate for two people gaming in the same room.
@@ -95,6 +96,8 @@ Program eşiği kendisi ayarlar.
 - Penceredeki **X** programı kapatmaz, simge alanına küçültür. Simgeye tıklayınca pencere geri gelir.
 - Tamamen kapatmak için simgeye **sağ tık → Çıkış**. Kapatırsan Discord'a ses gitmez.
 - **Windows açılınca başlat** varsayılan olarak açık: program pencere göstermeden başlar ve dinlemeye geçer.
+- Yeni sürüm çıktığında başlığın sağında yeşil **↑ Yeni sürüm mevcut** yazısı ve bir bildirim çıkar.
+  Tıklayınca indirme sayfası açılır; indirip eski exe'nin yerine koyman yeterli.
 - Ayarlar: `%APPDATA%\SesKalkani\ayarlar.ini`
 
 ## Nasıl çalışır?
@@ -107,6 +110,7 @@ Program eşiği kendisi ayarlar.
 - `src/MainForm.cs`: arayüz, simge alanı, otomatik ayar ve başlangıç kaydı.
 
 Ses kaydedilmez ve ağa ses gönderilmez; iki bilgisayar arasında yalnızca anlık ses **seviyesi** ve bilgisayar adı paylaşılır.
+Güncelleme kontrolü için program açılışta ve 6 saatte bir GitHub'dan yalnızca son sürüm numarasını sorar.
 
 ## Derleme
 
